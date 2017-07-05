@@ -4,7 +4,7 @@
 Plugin Name: A Practical WordPress Plugin
 Plugin URI: http://github.com/ianferrell/test-project
 Description: This plugin does a multitude of things in order to get your site off the ground and running properly.
-Version: 1.0
+Version: 1.1
 Author: Ian Ferrell
 Author URI: http://ianferrell.com/
 */
@@ -13,16 +13,66 @@ Author URI: http://ianferrell.com/
 	function form_func( $atts ){
 
 		ob_start(); // using ob_start() to convert to a string. Helpful for shortcodes that produce a lot of output ?>
-		<form method="post">
-			Name: <input type="text" name="name" value="<?php echo $name;?>">
-			E-mail: <input type="text" name="email" value="<?php echo $email;?>">
-			<button type="submit">Submit</button>
+		<form action="#contactform" method="post" id="contactform">
+			<input type="text" name="contactName" placeholder="Name" value="">
+			<input type="text" name="contactEmail" placeholder="Email" value="">
+			<input type="submit" name="submit" value="Submit"/>
 		</form>
-		<?php return ob_get_clean();
+		<?php $html = ob_get_clean();
+
+        if ( isset( $_POST['submit'] ) && $_POST['contactName'] != '' && $_POST["contactEmail"] != '' ) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'form_entries';
+            $name = strip_tags($_POST['contactName'], "");
+            $email = strip_tags($_POST['contactEmail'], "");
+            $wpdb->insert(
+                $table,
+                array(
+                    'name' => $name,
+					'email' => $email,
+                )
+            );
+            $html = "<p>Thanks <strong>$name</strong>, we'll be in touch soon.</p>";
+        }
+
+        if ( isset( $_POST["submit"] ) && $_POST["contactName"] == "" || isset( $_POST["submit"] ) && $_POST["contactEmail"] == "" ) {
+            $html .= "<p>You need to fill all the fields.</p>";
+        }
+        return $html;
+
 	}
 
 add_shortcode( 'form', 'form_func' ); // activate the [form] shortcode
 
+
+//// FORM DATABASE TABLE SETUP
+
+	global $contact_form_db_version;
+	$contact_form_db_version = '1.1';
+
+	function form_install() {
+		global $wpdb;
+		global $contact_form_db_version;
+
+		$table_name = $wpdb->prefix . 'form_entries';
+
+		$charset_collate = $wpdb->get_charset_collate();
+
+		$sql = "CREATE TABLE $table_name (
+			id mediumint(9) NOT NULL AUTO_INCREMENT,
+			name text NOT NULL,
+			email text NOT NULL,
+			PRIMARY KEY  (id)
+		) $charset_collate;";
+
+		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+		dbDelta( $sql ); // Using dbDelta from the upgrade file to check database between versions
+
+		add_option( 'contact_form_db_version', $contact_form_db_version );
+
+	}
+
+register_activation_hook( __FILE__, 'form_install' );
 
 //// BOOKS CUSTOM POST TYPE
 	function books_cpt() {
